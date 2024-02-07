@@ -5,3 +5,4 @@ select p_code as `Product Code`,
        p_qoh as `Quantity on Hand`,  
        p_qoh * p_price as `Total Value`                       
 from product
+order by P_QOH asc, p_price desc
