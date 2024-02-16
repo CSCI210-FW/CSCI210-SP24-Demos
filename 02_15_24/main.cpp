@@ -1,8 +1,12 @@
 #include <iostream>
 #include <string>
 #include <sqlite3.h>
+#include <limits>
 
 int genericRowCallback(void *, int, char **, char **); // void * is a memory address of unknown type, int is the num of cols in the result, char** is an array of strings with the column values, char** is an array of strings with the column names
+
+void viewAssignmentsByProject(sqlite3 *);
+void resetStream();
 
 int main()
 {
@@ -24,6 +28,13 @@ int main()
     if (rc != SQLITE_OK)
     {
         std::cout << "There was an error - select callback: " << sqlite3_errmsg(db) << std::endl;
+        std::cout << query << std::endl;
+    }
+    query = "delete from employee where emp_lname = 'Brown' and emp_fname = 'Charlie'";
+    rc = sqlite3_exec(db, query.c_str(), NULL, NULL, NULL);
+    if (rc != SQLITE_OK)
+    {
+        std::cout << "There was an error - delete: " << sqlite3_errmsg(db) << std::endl;
         std::cout << query << std::endl;
     }
     std::string lname, fname, mi;
@@ -54,7 +65,7 @@ int main()
         int emp_num = sqlite3_last_insert_rowid(db);
         std::cout << fname << " " << lname << " inserted into the database as employee number " << emp_num << std::endl;
     }
-
+    viewAssignmentsByProject(db);
     sqlite3_close(db);
 
     return 0;
@@ -71,4 +82,84 @@ int genericRowCallback(void *extData, int numCols, char **values, char **colName
     }
     std::cout << std::endl;
     return SQLITE_OK;
+}
+
+void viewAssignmentsByProject(sqlite3 *db)
+{
+    std::string query;
+    sqlite3_stmt *result;
+    query = "select proj_num, proj_name from project";
+    int rc = sqlite3_prepare_v2(db, query.c_str(), -1, &result, NULL);
+    if (rc != SQLITE_OK)
+    {
+        sqlite3_finalize(result);
+        std::cout << "There was an error with the project query: " << sqlite3_errmsg(db) << std::endl;
+        std::cout << query << std::endl;
+        return;
+    }
+    int columnCount = sqlite3_column_count(result);
+    int i, choice;
+    std::cout << std::left;
+    std::cout << "Please choose the project: " << std::endl;
+    i = 1;
+    do
+    {
+        rc = sqlite3_step(result);
+        if (rc == SQLITE_DONE)
+            break;
+        std::cout << i << ". " << sqlite3_column_text(result, 0);
+        std::cout << " - " << sqlite3_column_text(result, 1);
+        std::cout << std::endl;
+        i++;
+
+    } while (rc == SQLITE_ROW);
+    std::cin >> choice;
+    while (!std::cin || choice < 1 || choice >= i)
+    {
+
+        if (!std::cin)
+            resetStream();
+        std::cout << "That is not a valid choice! Try again!" << std::endl;
+        std::cin >> choice;
+    }
+    sqlite3_reset(result);
+    for (int j = 0; j < choice; j++)
+    {
+        sqlite3_step(result);
+    }
+    int proj_num = sqlite3_column_int(result, 0);
+    sqlite3_finalize(result);
+    query = "select sum(assign_hours) as 'Total Hours', sum(assign_charge) as 'Total Charges' ";
+    query += "from assignment ";
+    query += "where proj_num = " + std::to_string(proj_num);
+    query += " group by proj_num";
+
+    rc = sqlite3_prepare_v2(db, query.c_str(), -1, &result, NULL);
+    if (rc != SQLITE_OK)
+    {
+        sqlite3_finalize(result);
+        std::cout << "There was an error with the assignment query: " << sqlite3_errmsg(db) << std::endl;
+        std::cout << query << std::endl;
+        return;
+    }
+    columnCount = sqlite3_column_count(result);
+    for (rc = sqlite3_step(result); rc == SQLITE_ROW; rc = sqlite3_step(result))
+    {
+        for (int i = 0; i < columnCount; i++)
+        {
+            std::cout << sqlite3_column_name(result, i) << " - ";
+            if (sqlite3_column_type(result, i) != SQLITE_NULL)
+            {
+                std::cout << sqlite3_column_text(result, i);
+            }
+            std::cout << std::endl;
+        }
+    }
+    sqlite3_finalize(result);
+}
+
+void resetStream()
+{
+    std::cin.clear();
+    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 }
