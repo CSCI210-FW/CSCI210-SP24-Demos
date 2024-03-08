@@ -83,7 +83,7 @@ int genericRowCallback(void *extData, int numCols, char **values, char **colName
     std::cout << std::endl;
     return SQLITE_OK;
 }
-
+// making a change for commit
 void viewAssignmentsByProject(sqlite3 *db)
 {
     std::string query;
